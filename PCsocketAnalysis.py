@@ -5,35 +5,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import glob
-import os
 from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.decomposition import PCA
+from sklearn.neighbors import NearestNeighbors
 from collections import Counter
+from sklearn.svm import SVC
 from sklearn.metrics import silhouette_score
 sns.set_theme(style='whitegrid')
 
 
-# %% Load data
-
-df_bot = dataLoader('bot')
+# %% Load Data
+df_pc = dataLoader('pc')
 # %% Parse time
-df_bot['time'] = pd.to_datetime(df_bot['time'])
-df_bot['time'] = df_bot['time'].dt.tz_convert('Asia/Shanghai')
-df_bot['date'] = df_bot['time'].dt.date
-df_bot['hour'] = df_bot['time'].dt.hour
-
-
-'''# %% Determine the time interval to pivot with
-df_bot['functionType'].unique()
-# df_bot.to_csv('socketAnalysis.csv', index=False)
-df_bot['diff'] = df_bot['time'].diff()
-df_bot['diff'].value_counts().head(10)
-df_bot.set_index('time').resample('59S').count()['value'].plot(title='Readings per 59 seconds')
-'''
-
-# %% Pivot data
-df_pivot = df_bot.copy()
+df_pc['time'] = pd.to_datetime(df_pc['time'])
+df_pc['time'] = df_pc['time'].dt.tz_convert('Asia/Shanghai')
+df_pc['date'] = df_pc['time'].dt.date
+df_pc['hour'] = df_pc['time'].dt.hour
+# %% pivot
+df_pivot = df_pc.copy()
 df_pivot = df_pivot.set_index('time')
 df_pivot = (
     df_pivot.groupby('functionType')['value']
@@ -43,46 +33,42 @@ df_pivot = (
     .dropna(how='all')
 )
 
-# %% Correlation
+# %% Correlation Analysis
 corr_mat = df_pivot.corr()
 plt.figure(figsize=(10, 8))
 sns.heatmap(corr_mat, annot=True, fmt=".2f", cmap='coolwarm', square=True)
 plt.title('Correlation Matrix of functionType')
-plt.savefig(save_path('correlation_matrix.png', device='bot'))
+plt.savefig(save_path('correlation_matrix.png', device='pc'))
 plt.show()
-
-# %% Distribution of functionType
-for col in df_bot['functionType'].unique():
-    sns.histplot(df_bot[df_bot['functionType'] == col]['value'], bins=30, kde=True)
+# %% Distribution Analysis
+for col in df_pc['functionType'].unique():
+    sns.histplot(df_pc[df_pc['functionType'] == col]['value'], bins=30, kde=True)
     plt.title(f'Distribution of {col}')
-    plt.savefig(save_path(f'distribution_{col}.png', device='bot'))
+    plt.savefig(save_path(f'distribution_{col}.png', device='pc'))
     plt.show()
-# %%
-df_bot['time'] = pd.to_datetime(df_bot['time'])
-df_bot['date'] = df_bot['time'].dt.date
-df_bot.groupby('date').size().plot(kind='bar', figsize=(12, 6), title='Number of Readings per Day')
-# %% Time series analysis
+# %% Time Series Subplot
 axes = df_pivot.plot(subplots=True, figsize=(14, 2.5 * len(df_pivot.columns)), 
                      title='functionType Over Time (Subplots)', legend=False)
 
-# Label each subplot
+
 for ax, col in zip(axes, df_pivot.columns):
     ax.set_ylabel(col)
     ax.set_xlabel('Time')
     ax.set_title(col, loc='right')
 
 plt.tight_layout()
-plt.savefig(save_path('functionType_over_time.png', device='bot'))
+plt.savefig(save_path('functionType_subplots.png', device='pc'))
 plt.show()
-# %% Missing values
+# %% Missing Data
 df_pivot.isna().sum().sort_values(ascending=False).plot(kind='bar', figsize=(12, 6), title='Missing Values in functionType')
+
 # %% PCA
 pca = PCA(n_components=2)
 X_scaled = StandardScaler().fit_transform(df_pivot.dropna())
 X_pca = pca.fit_transform(X_scaled)
 
 
-#Silhouette analysis
+# %% Silhouette analysis
 silhouette_scores = []
 K_range = range(2, 11)
 for k in K_range:
@@ -99,29 +85,9 @@ plt.xlabel('Number of Clusters (K)')
 plt.ylabel('Silhouette Score')
 plt.xticks(K_range)
 plt.grid()
-plt.savefig(save_path('silhouette_analysis.png', device='bot'))
+plt.savefig(save_path('silhouette_analysis.png', device='pc'))
 plt.show()
 
-'''
-#Compare K-means clustering with different 2 and 3 clusters
-df_pca = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
-def kM(k, ax):
-    kmeans = KMeans(n_clusters=k, random_state=1103)
-    labels = kmeans.fit_predict(X_pca)
-    df_pca[f'cluster_{k}'] = labels
-    sns.scatterplot(data=df_pca, x='PC1', y='PC2', hue=f'cluster_{k}', palette='viridis', ax=ax)
-    ax.set_title(f'K-means Clustering with {k} Clusters')
-    ax.legend(title='Cluster', loc='best')
-
-fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-kM(2, axes[0])
-kM(3, axes[1])
-plt.tight_layout()
-plt.savefig(save_path('kmeans_comparison.png', device='bot'))
-plt.show()
-'''
-
-# %% k means with 2 clusters
 kmeans = KMeans(n_clusters=2, random_state=1103)
 kmeans.fit(X_pca)
 X_plot = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
@@ -129,17 +95,150 @@ X_plot['cluster'] = kmeans.labels_
 plt.figure(figsize=(10, 8))
 sns.scatterplot(data=X_plot, x='PC1', y='PC2', hue='cluster', palette='viridis')
 plt.title('K-means Clustering of functionType')
-plt.savefig(save_path('kmeans_clustering.png', device='bot'))
+plt.savefig(save_path('kmeans_clustering.png', device='pc'))
 plt.show()
 
 loadings = pd.DataFrame(pca.components_.T,
                         index = df_pivot.columns,
                         columns = ['PC1', 'PC2'])
 print(loadings.sort_values(by='PC1', ascending=False))
-# %% Assign states
-df_pivot['cluster'] = kmeans.labels_
-label_map = {0: 'charging', 1: 'activity'}
-df_pivot['state'] = df_pivot['cluster'].map(label_map)
+
+# %% DBSCAN
+
+# nearest neighbors for dbscan
+neighbors = NearestNeighbors(n_neighbors=10)
+neighbors_fit = neighbors.fit(X_scaled)
+distances, indices = neighbors_fit.kneighbors(X_scaled)
+distances = np.sort(distances[:, 9])  # 10th nearest neighbor
+plt.plot(distances)
+plt.title('k-distance Graph')
+plt.ylabel("10th Nearest Distance")
+plt.xlabel("Points sorted by distance")
+plt.savefig(save_path('k_distance_graph.png', device='pc'))
+plt.show()
+
+# dbscan clustering
+dbscan = DBSCAN(eps=2.5, min_samples=5)
+labels = dbscan.fit_predict(X_pca)
+pd.Series(labels).value_counts().plot(kind='bar', figsize=(10, 6), title='DBSCAN Cluster Sizes')
+X_plot = pd.DataFrame(X_pca, columns=['PC1', 'PC2'])
+X_plot['cluster'] = labels
+plt.figure(figsize=(10, 8))
+sns.scatterplot(data=X_plot, x='PC1', y='PC2', hue='cluster', palette='viridis')
+plt.title('DBSCAN Clustering')
+plt.savefig(save_path('dbscan_clustering.png', device='pc'))
+plt.show()
+# %% SVM
+svm = SVC(kernel='linear')
+svm.fit(X_pca, kmeans.labels_)
+
+h = 0.02
+x_min, x_max = X_pca[:, 0].min() - 1, X_pca[:, 0].max() + 1
+y_min, y_max = X_pca[:, 1].min() - 1, X_pca[:, 1].max() + 1
+xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                     np.arange(y_min, y_max, h))
+
+Z = svm.predict(np.c_[xx.ravel(), yy.ravel()])
+Z = Z.reshape(xx.shape)
+
+plt.figure(figsize=(10, 8))
+plt.contourf(xx, yy, Z, cmap='coolwarm', alpha=0.3)
+sns.scatterplot(x=X_pca[:, 0], y=X_pca[:, 1], hue=labels, palette='Set1', s=40, edgecolor='k')
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.title('Linear SVM Decision Boundary on PCA Space')
+plt.legend(title='Cluster')
+plt.grid(True)
+plt.show()
+# %% Manual clustering
+
+m, b = -1.5, 0
+x_vals = np.linspace(X_pca[:, 0].min(), X_pca[:, 0].max(), 100)
+y_vals = m * x_vals + b
+sns.scatterplot(data=X_plot, x='PC1', y='PC2', palette='viridis')
+plt.plot(x_vals, y_vals, '--k', label='Manual Boundary: y = -1.5x')
+plt.xlabel('PC1')
+plt.ylabel('PC2')
+plt.title('Manual Clustering with Custom Linear Boundary')
+plt.legend()
+plt.ylim(-5,5)
+plt.grid(True)
+plt.savefig(save_path('manual_clustering_boundary.png', device='pc'))
+plt.show()
+
+manual_clusters = np.where(X_pca[:, 1] < m * X_pca[:, 0] + b, 0, 1)
+df_pivot['manual_cluster'] = manual_clusters
+
+
+boundary_v = np.array([1, -1.5])
+boundary_v = boundary_v / np.linalg.norm(boundary_v)
+projection = X_pca @ boundary_v
+sns.histplot(projection, bins=100, kde=True)
+plt.title('Projection of Data Points onto Custom Boundary Vector')
+plt.xlabel('Projection Value')
+plt.ylabel('Frequency')
+plt.axvline(0, color='black', linestyle='--', label='Boundary at 0')
+plt.legend()
+plt.savefig(save_path('projection_histogram.png', device='pc'))
+plt.show()
+
+threshold = -0.45
+
+manual_clusters_shifted = np.where(projection < threshold, 0, 1)
+plt.figure(figsize=(7, 5))
+sns.histplot(projection, bins=100, kde=True, color='steelblue', alpha=0.6)
+plt.axvline(x=threshold, color='black', linestyle='--', label=f'Boundary at {threshold}')
+plt.title('Projection of Data Points onto Custom Boundary Vector')
+plt.xlabel('Projection Value')
+plt.ylabel('Frequency')
+plt.legend()
+plt.tight_layout()
+plt.savefig(save_path('projection_histogram_shifted.png', device='pc'))
+plt.show()
+
+
+m = -1.5
+threshold = -0.45
+
+
+boundary_v = np.array([1, m])
+boundary_v = boundary_v / np.linalg.norm(boundary_v)
+b = threshold / boundary_v[1]  # this is now the shifted y-intercept
+
+
+manual_clusters_shifted = np.where(X_pca[:, 1] < m * X_pca[:, 0] + b, 0, 1)
+df_pivot['manual_cluster'] = manual_clusters_shifted
+
+
+x_vals = np.linspace(X_pca[:, 0].min(), X_pca[:, 0].max(), 100)
+y_vals = m * x_vals + b
+
+plt.figure(figsize=(7, 5))
+sns.scatterplot(
+    x=X_pca[:, 0], 
+    y=X_pca[:, 1], 
+    hue=df_pivot['manual_cluster'], 
+    palette='Set1', 
+    s=20
+)
+plt.plot(x_vals, y_vals, '--k', label=f'Manual Boundary: y = {m}x + {b:.4f}')
+plt.title("Manual Clusters in PCA Space")
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.legend()
+plt.grid(True)
+plt.ylim(-4, 4)
+plt.tight_layout()
+plt.savefig(save_path('manual_clusters_pca.png', device='pc'))
+plt.show()
+
+# %% interpret the manual clusters
+cluster_summary = df_pivot.groupby('manual_cluster').mean().T
+display(cluster_summary)
+
+
+label_map = {0: 'idle', 1: 'operating'}
+df_pivot['state'] = df_pivot['manual_cluster'].map(label_map)
 plt.figure(figsize=(6, 6))
 df_pivot['state'].value_counts().plot.pie(
     autopct='%1.1f%%',
@@ -147,43 +246,32 @@ df_pivot['state'].value_counts().plot.pie(
     ylabel=''
 )
 plt.tight_layout()
-plt.savefig(save_path('state_distribution.png', device='bot'))
+plt.savefig(save_path('state_distribution.png', device='pc'))
 plt.show()
-
 palette = {'charging': '#4C72B0', 'activity': '#DD8452'} 
 state_palette = {
     'charging': '#4C72B0',
     'activity': '#DD8452'
 }
-# %% Visualize state distribution by hour and day
+# %%
 df_clean = df_pivot.dropna().copy()
-df_clean["cluster"] = kmeans.labels_
-df_clean["state"] = df_clean["cluster"].map(label_map)
 
 df_clean["hour"] = df_clean.index.hour
-sns.countplot(data=df_clean, x="hour", hue="state", palette=palette)
+sns.countplot(data=df_clean, x="hour", hue="state")
 plt.title("State Distribution by Hour of Day")
-plt.legend(title="State", bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.savefig(save_path('state_distribution_by_hour.png', device='bot'))
+plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.savefig(save_path('state_distribution_by_hour.png', device='pc'))
 plt.show()
-
+# %%
 df_clean["weekday"] = df_clean.index.day_name()
 sns.countplot(data=df_clean, x="weekday", hue="state",
-              order=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-              palette=palette)
+              order=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
 plt.title("State Distribution by Day of Week")
-plt.legend(title="State", bbox_to_anchor=(1.05, 1), loc='upper left')
-plt.savefig(save_path('state_distribution_by_weekday.png', device='bot'))
-
-df_clean["date"] = df_clean.index.date
-state_trend = df_clean.groupby(["date", "state"]).size().unstack().fillna(0)
-
-state_trend.plot(kind="area", stacked=True, figsize=(12, 6))
-plt.title("Time Spent in Each State Over Days")
-plt.savefig(save_path('state_trend_over_days.png', device='bot'))
+plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.savefig(save_path('state_distribution_by_weekday.png', device='pc'))
 plt.show()
 
-# %% time spent in each state
+# %%
 df_clean = df_clean.sort_index()
 df_clean['time'] = df_clean.index
 df_clean['state_change'] = (df_clean['state'] != df_clean['state'].shift()).cumsum()
@@ -195,74 +283,45 @@ durations = df_clean.groupby(['state', 'state_change']).agg(
 durations.groupby('state')['duration'].describe()
 durations['duration_min'] = durations['duration'].dt.total_seconds() / 60
 plt.figure(figsize=(10, 6))
-sns.boxplot(data=durations, x='state', y='duration_min', palette=palette)
+sns.boxplot(data=durations, x='state', y='duration_min')
 plt.title('Duration in Each State')
-plt.savefig(save_path('duration_per_state.png', device='bot'))
+plt.savefig(save_path('duration_per_state.png', device='pc'))
 plt.show()
 
 # %% duration per state
 plt.figure(figsize=(10, 6))
-sns.histplot(data=durations, x='duration_min', hue='state', bins = 60, element='step', common_norm=False, palette=palette)
+sns.histplot(data=durations, x='duration_min', hue='state', bins = 60, element='step', common_norm=False)
 plt.title('Distribution of Duration in Each State')
 plt.xlabel('Duration (minutes)')
 plt.ylabel('Frequency')
 plt.xlim(0, durations['duration_min'].quantile(0.99))  # Limit x-axis to 99th percentile
-plt.savefig(save_path('duration_distribution_per_state.png', device='bot'))
 plt.show()
 
 # %% duration over time
 plt.figure(figsize=(12, 6))
-sns.lineplot(data=durations, x='start', y='duration_min', hue='state', marker='o', palette=palette)
+sns.lineplot(data=durations, x='start', y='duration_min', hue='state', marker='o')
 plt.title('Duration in Each State Over Time')
 plt.xlabel('Time')
 plt.ylabel('Duration (minutes)')
 plt.ylim(0, durations['duration_min'].quantile(0.99))  # Limit y-axis to 99th percentile
-plt.savefig(save_path('duration_over_time.png', device='bot'))
+
 plt.show()
 
-# %% Markov chain analysis
-df_sorted = df_clean.reset_index(drop=True).sort_values('time')
-state_sequence = df_sorted['state'].tolist()
-transitions = list(zip(state_sequence[:-1], state_sequence[1:]))
-transition_counts = Counter(transitions)
-states = sorted(set(state_sequence))
-matrix = pd.DataFrame(0, index=states, columns=states).fillna(0)
-for (from_state, to_state), count in transition_counts.items():
-    matrix.loc[from_state, to_state] += count
-transition_matrix = matrix.div(matrix.sum(axis=1), axis=0)
-print(transition_matrix)
-plt.figure(figsize=(8, 6))
-sns.heatmap(transition_matrix, annot=True, fmt=".2f", cmap='Blues', square=True)
-plt.title('Transition Matrix of States')
-plt.savefig(save_path('transition_matrix.png', device='bot'))
-plt.show()
-# %% markov chain stable state
-P = transition_matrix.values
-A = P.T - np.eye(P.shape[0])
-A = np.vstack([A, np.ones(P.shape[0])])
-b = np.append(np.zeros(P.shape[0]), 1)
-steady_state = np.linalg.lstsq(A, b, rcond=None)[0]
-steady_state_series = pd.Series(steady_state, index=transition_matrix.index)
-print("Steady State Distribution:")
-print(steady_state_series)
+
 # %% daily usage profile by day of the week
 df_clean['day_of_week'] = df_clean.index.day_name()
 usage_by_day = df_clean.groupby(['day_of_week', 'state']).size().unstack(fill_value=0)
 usage_by_day = usage_by_day.reindex(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
 usage_by_day_norm = usage_by_day.div(usage_by_day.sum(axis=1), axis=0)
 plt.figure(figsize=(12, 6))
-usage_by_day_norm.plot(
-    kind='bar',
-    stacked=True,
-    color=[state_palette[state] for state in usage_by_day_norm.columns]
-)
+usage_by_day_norm.plot(kind='bar', stacked=True)
 plt.title('Daily Usage Profile by Day of the Week')
 plt.xlabel('Day of the Week')
 plt.ylabel('Proportion of Time in Each State')
 plt.xticks(rotation=45)
-plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.legend(title='State')
 plt.tight_layout()
-plt.savefig(save_path('daily_usage_profile_by_day_of_week.png', device='bot'))
+plt.savefig(save_path('daily_usage_profile.png', device='pc'))
 plt.show()
 
 # %% usage by time of day
@@ -294,16 +353,14 @@ time_of_day_profile['time_of_day'] = pd.Categorical(
 )
 time_of_day_profile = time_of_day_profile.sort_values('time_of_day')
 
-# Plot
 plt.figure(figsize=(8, 6))
 sns.barplot(data=time_of_day_profile, x='time_of_day', y='proportion', hue='state')
 plt.title('Usage Profile by Time of Day')
 plt.ylabel('Proportion of Time in Each State')
 plt.xlabel('Time of Day')
 plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
-
+plt.savefig(save_path('usage_profile_by_time_of_day.png', device='pc'))
 plt.tight_layout()
-plt.savefig(save_path('usage_profile_by_time_of_day.png', device='bot'))
 plt.show()
 # %% 
 def twohr_bin(t):
@@ -324,16 +381,14 @@ proportions_2hr = (
 )
 
 plt.figure(figsize=(14, 6))
-sns.barplot(data=proportions_2hr, x='2hr_bin', y='proportion', hue='state', palette=palette)
+sns.barplot(data=proportions_2hr, x='2hr_bin', y='proportion', hue='state')
 plt.title('Usage Profile by 2-Hour Interval')
 plt.ylabel('Proportion of Time in Each State')
-plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.xlabel('Time Interval')
 plt.xticks(rotation=45)
+plt.legend(title='State', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(save_path('usage_profile_by_2hr_interval.png', device='bot'))
+plt.savefig(save_path('usage_profile_by_2hr_interval.png', device='pc'))
 plt.show()
-
-# %%
 
 # %%

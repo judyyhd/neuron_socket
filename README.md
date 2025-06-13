@@ -1,81 +1,91 @@
-# Delivery Bot Smart Plug Analysis
+# Smart Plug Analysis for Hotel Devices
 [TOC]
-# Statement of Purpose
-This repository is the home to the socket data and analysis script. 
-In this exploratory data analysis project, I was given two data files on two smart plugs deployed at a hotel. One of them is used by a automatic delivery bot, where the delivery person hand off the delivery to the bot, and the bot automatically goes to the designated hotel room to deliver the parcel. The second one is used by a public PC located in the hotel's lobby. 
-The purpose of this project is to uncover any trend in the data, with which we could discover some insight into the operations of the delivery bot and/or that of the hotel. The hotel public PC data is intended as a control group. 
 
-# About the Data
-The socket data is provided by Bi-Fan Yin of 住友酒店, requested by Alex Hon. 
-There are 4 columns in the original dataset: **equipmentName**, **functionType**, **time**, and **value**.
-## equipmentName
-Two unique values: Zprime_Socket_01 and Zprime_Socket_02. 01 corresponds to the smart plug used by automatic delivery bots, and 02 corresponds to the smart plug used by a public PC. 
+## Statement of Purpose
+This repository contains the data and analysis scripts for an exploratory study of two smart plugs deployed in a hotel setting. The first smart plug powers an **automated delivery robot**, which transports parcels from staff to hotel guests. The second powers a **public PC** located in the hotel’s lobby.
 
-## functionType
-12 unique values: CSQ, Current, LastHourPF, Leakage, PartPF, PhaseAngle, Power, PowerFactor, RelayStatus, Temperature, TotalPF, and Voltage. 
-According to the document provided by Yin (安驿电管家系列产品协议文档-V1.07 1.pdf), the values correspond to:
-* CSQ: 信号强度百分比
-  * 浮点数表示，0.00%-100.00%，百分比值越大，信号越强
-* Current: 电流
-  * 浮点数表示，单位安培（A）
-* LastHourPF: 前一小时电能量
-  * 浮点数表示，单位为度（KWH）
-* Leakage: 漏电流
-  * 浮点数表示，单位为毫安（mA）
-* PartPF: 当日电能量
-  * 浮点数表示，单位为度（KWH）
-* PhaseAngle: 相位角
-  * 浮点数表示，单位为度
-* Power: 有功功率
-  * 浮点数表示，单位瓦特（W）
-* PowerFactor: 功率因数
-  * 浮点数表示，单位无
-* RelayStatus: 继电器状态
-  * 0：继电器断开1：继电器闭合
-* Temperature: 温度
-  * 浮点数表示，单位为摄氏度（℃）
-* TotalPF: 总电能量
-  * 浮点数表示，单位为度（KWH）
-* Voltage: 电压
-  * 浮点数表示，单位伏特（V）
+The project’s aim is to uncover operational patterns and energy usage trends, which can provide insights into the behavior and utilization of each device. By comparing these patterns, we explore how energy consumption reflects different usage contexts (robotic automation vs. human-operated terminal) and identify opportunities for smart facility optimization.
 
-## time
-Time at which the data was recorded. ISO 8601 format with a UTC offset. 
+## About the Data
+The socket data is provided by Bi-Fan Yin of 住友酒店 and was requested by Alex Hon.
 
-## value
-The value of the specific functionType.
+Each dataset includes four columns:
 
-# Robot Activity Log Analysis Summary
+- **equipmentName**: 
+  - `Zprime_Socket_01` — delivery robot plug  
+  - `Zprime_Socket_02` — public PC plug
+- **functionType**: 12 types, including current, power, voltage, relay status, temperature, and more (detailed below).
+- **time**: ISO 8601 timestamp with UTC offset.
+- **value**: The measured reading for the specific functionType.
 
-This analysis explores patterns in a robot's operational data using time series processing, clustering, and state modeling. The goal is to characterize usage behavior and uncover temporal structure in the robot's activities.
+### FunctionType Dictionary
+| FunctionType    | Description                        | Unit            |
+|----------------|------------------------------------|-----------------|
+| CSQ            | Signal strength (%)                | %               |
+| Current        | Electrical current                 | A               |
+| LastHourPF     | Energy in previous hour            | kWh             |
+| Leakage        | Leakage current                    | mA              |
+| PartPF         | Energy today                       | kWh             |
+| PhaseAngle     | Phase angle                        | °               |
+| Power          | Active power                       | W               |
+| PowerFactor    | Power factor                       | (unitless)      |
+| RelayStatus    | Relay status (0=off, 1=on)         | binary          |
+| Temperature    | Device temperature                 | °C              |
+| TotalPF        | Total energy                       | kWh             |
+| Voltage        | Voltage                            | V               |
 
-## Steps Completed
+---
 
-1. **Preprocessing**
-   - Parsed timestamps from raw logs.
-   - Resampled data to 59-seconds intervals for uniform time series representation.
+## Report Structure
 
-2. **Exploratory Data Analysis**
-   - Computed correlation matrix between functions to understand relationships.
-   - Visualized distributions of function values to identify distinct operational regimes.
-   - Inspected time series plots to observe behavior dynamics.
+The full analysis report is structured into five parts:
 
-3. **Clustering and Dimensionality Reduction**
-   - Applied **K-Means clustering** to function time series and found 3 interpretable clusters.
-   - Used **Principal Component Analysis (PCA)** to confirm that **PC1** captures overall robot activity.
-   - Interpreted cluster centroids and PCA loadings to assign functional meanings to clusters:
-     - `Idle`: Robot is inactive and not charging.
-     - `Active charging`: Robot is plugged in.
-     - `Moderate`: Robot is performing regular tasks.
+1. **Introduction**  
+   Overview of the project goal, context, and data structure.
+2. **Delivery Bot Analysis**  
+   Characterization of the bot's operation via time series analysis, clustering, and state modeling.
+3. **Public PC Analysis**  
+   Similar methods applied to the PC dataset as a behavioral contrast.
+4. **Comparative Insights**  
+   A discussion of how the robot and PC differ in terms of energy patterns, routines, and clustering structure.
+5. **Conclusion**  
+   Summarizes actionable insights and how the identified data structure could support real-time monitoring, optimization, or automation strategies.
 
-4. **State Assignment and Transition Modeling**
-   - Labeled time series data with assigned states from clustering.
-   - Computed total time spent in each state.
-   - Built a **Markov transition matrix** and computed the **stationary distribution** of robot states.
+---
 
-5. **Temporal Usage Profiling**
-   - Aggregated state durations by:
-     - **Day of week**
-     - **Time of day** (morning / afternoon / evening / night)
-     - **2-hour intervals**
-   - Visualized state proportions using grouped bar plots to reveal patterns in state usage across time.
+## Analysis Highlights
+
+### 📦 Delivery Bot Smart Plug
+
+- **Preprocessing**: Timestamps parsed, time series resampled to consistent intervals.
+- **Feature Exploration**: Correlation matrix, value distributions, and trend visualizations.
+- **Clustering**: PCA + K-Means clustering + manual boundary tuning.
+- **State Modeling**: Custom state labels (e.g., idle, charging, active), transition matrices, stationary distributions.
+- **Temporal Profiling**: Usage breakdowns by hour, weekday, and time-of-day segments.
+
+### 🖥️ Public PC Smart Plug
+
+- Similar approach applied to uncover usage routines.
+- Clustering more effective due to less binary structure.
+- Power states captured weekday vs. weekend activity.
+- PCA revealed key drivers like ambient temperature and voltage influence.
+
+### 📊 Comparison
+- The delivery bot’s usage is **highly polarized**, dominated by predictable charging cycles.
+- The public PC has **more variable and human-driven usage**, enabling richer unsupervised clustering.
+- Analysis framework scales across devices and reveals potential **automation thresholds** and **scheduling opportunities**.
+
+---
+
+## Repository Contents
+
+- `data/`: Raw and cleaned datasets.
+- `notebooks/`: Jupyter notebooks used for analysis.
+- `figures/`: Visualizations generated during the project.
+- `report/`: Compiled LaTeX report and output PDF.
+- `README.md`: Project overview.
+
+---
+
+## Citation
+If you reference or build upon this work, please cite the GitHub repo or contact Judy Yang.

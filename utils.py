@@ -24,3 +24,9 @@ def dataLoader(a, folder='.', suffix='.xlsx'):
     df_filtered = df_concat[df_concat['equipmentName'] == equipment_name].copy()
     
     return df_filtered
+
+def save_path(filename, device='bot'):
+    current_dir = os.getcwd()
+    save_dir = os.path.join(current_dir, 'figures', device)
+    os.makedirs(save_dir, exist_ok=True)
+    return os.path.join(save_dir, filename)
