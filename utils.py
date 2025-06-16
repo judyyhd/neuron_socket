@@ -3,7 +3,7 @@ import glob
 import os
 
 
-def dataLoader(a, folder='.', suffix='.xlsx'):
+def dataLoader(a, folder='./data', suffix='.xlsx'):
 
     equipment_map = {
         'bot': 'Zprime_Socket_01',
@@ -30,3 +30,8 @@ def save_path(filename, device='bot'):
     save_dir = os.path.join(current_dir, 'figures', device)
     os.makedirs(save_dir, exist_ok=True)
     return os.path.join(save_dir, filename)
+
+def read_path(device='bot'):
+    current_dir = os.getcwd()
+    read_dir = os.path.join(current_dir, 'data')
+    return os.path.join(read_dir, f'{device}.csv')
