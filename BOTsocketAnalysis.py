@@ -136,6 +136,35 @@ loadings = pd.DataFrame(pca.components_.T,
                         index = df_pivot.columns,
                         columns = ['PC1', 'PC2'])
 print(loadings.sort_values(by='PC1', ascending=False))
+
+# %% Disconnection detection
+'''
+df_pca = pd.DataFrame(X_pca, columns=['PC1', 'PC2'], index=df_pivot.index)
+outliers = df_pca[df_pca['PC1'] < -3.5]
+df_outliers = df_pivot.loc[outliers.index]
+
+for col in df_bot['functionType'].unique():
+    data_all = df_bot[df_bot['functionType'] == col]['value']
+    outlier_times = df_outliers.index
+    outlier_values = df_bot[(df_bot['functionType'] == col) & (df_bot.index.isin(outlier_times))]['value']
+
+    sns.histplot(data_all, bins=30, kde=True, color='blue', label='All Data')
+    if not outlier_values.empty:
+        sns.histplot(outlier_values, bins=30, kde=True, color='red', label='Outliers')
+    plt.title(f'Distribution of {col} with Outliers Highlighted')
+    plt.legend()
+    plt.savefig(save_path(f'outliers_{col}.png', device='bot'))
+    plt.show()
+
+df_pivot['disconnected'] = df_pivot.index.isin(outlier_times)
+df_pivot['state_extended'] = np.where(df_pivot['disconnected'], 'disconnected', df_pivot['state'])
+df_pivot['state_extended'].value_counts().plot.pie(autopct='%1.1f%%', title='Extended State Distribution')
+plt.ylabel('')
+plt.tight_layout()
+plt.savefig(save_path('state_extended_distribution.png', device='bot'))
+plt.show()
+disconnected_idx = df_pivot['state_extended'] == 'disconnected'
+df_pivot.loc[disconnected_idx, ['Voltage', 'Current', 'Power']].describe()'''
 # %% Assign states
 df_pivot['cluster'] = kmeans.labels_
 label_map = {0: 'charging', 1: 'activity'}
@@ -334,6 +363,48 @@ plt.tight_layout()
 plt.savefig(save_path('usage_profile_by_2hr_interval.png', device='bot'))
 plt.show()
 
-# %%
+# %% filtering out extreme values and re-running PCA and KMeans
+'''df_filtered = df_pivot[~df_pivot['disconnected']].dropna()
+df_full = df_pivot.dropna() 
+def run_pca_kmeans(df, n_clusters=2):
+    # Drop non-numeric columns
+    df_numeric = df.select_dtypes(include=[np.number])
 
+    # Standardize
+    X_scaled = StandardScaler().fit_transform(df_numeric)
+
+    # PCA
+    pca = PCA(n_components=2)
+    X_pca = pca.fit_transform(X_scaled)
+
+    # KMeans
+    kmeans = KMeans(n_clusters=n_clusters, random_state=1103)
+    labels = kmeans.fit_predict(X_pca)
+
+    # Silhouette score
+    silhouette = silhouette_score(X_pca, labels)
+
+    # Output
+    df_result = pd.DataFrame(X_pca, columns=['PC1', 'PC2'], index=df.index)
+    df_result['cluster'] = labels
+    return df_result, kmeans, pca, silhouette
+
+df_full_pca, kmeans_full, pca_full, sil_full = run_pca_kmeans(df_full)
+
+# Filtered dataset (without disconnected outliers)
+df_filtered_pca, kmeans_filtered, pca_filtered, sil_filtered = run_pca_kmeans(df_filtered)
+
+print(f"Silhouette Score (Full): {sil_full:.3f}")
+print(f"Silhouette Score (Filtered): {sil_filtered:.3f}")
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+sns.scatterplot(data=df_full_pca, x='PC1', y='PC2', hue='cluster', palette='viridis', ax=axes[0])
+axes[0].set_title('KMeans on Full Data (with outliers)')
+
+sns.scatterplot(data=df_filtered_pca, x='PC1', y='PC2', hue='cluster', palette='viridis', ax=axes[1])
+axes[1].set_title('KMeans on Filtered Data (no outliers)')
+
+plt.tight_layout()
+plt.savefig(save_path('kmeans_comparison_filtered_vs_full.png', device='bot'))
+plt.show()'''
 # %%
